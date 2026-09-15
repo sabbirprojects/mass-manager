@@ -1,0 +1,6 @@
+{
+  "name": "Smart Meal Manager",
+  "description": "Production-ready, mobile-first, offline-first mess management app with multi-account auth, meal tracking, expense sharing, audit logging, and reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
