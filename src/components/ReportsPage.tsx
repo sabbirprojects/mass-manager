@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import {
   FileText,
   Download,
@@ -42,6 +42,10 @@ export const ReportsPage: React.FC = () => {
 
   if (!activeMonth || !financialSummary) return null;
 
+  const activeMembers = useMemo(
+    () => members.filter((m) => m.monthId === activeMonth.id && !m.isRemoved),
+    [members, activeMonth.id]
+  );
   const currentBazaar = bazaarExpenses.filter((b) => b.monthId === activeMonth.id);
   const currentUniversal = universalExpenses.filter((u) => u.monthId === activeMonth.id);
   const currentDeposits = deposits.filter((d) => d.monthId === activeMonth.id);
@@ -50,7 +54,7 @@ export const ReportsPage: React.FC = () => {
   const dualReportData = {
     month: activeMonth,
     summary: financialSummary,
-    members,
+    members: activeMembers,
     bazaarExpenses: currentBazaar,
     universalExpenses: currentUniversal,
     deposits: currentDeposits,
@@ -146,7 +150,7 @@ export const ReportsPage: React.FC = () => {
         generateMonthlyReportPdf({
           activeMonth,
           financialSummary,
-          members,
+          members: activeMembers,
           bazaarExpenses: currentBazaar,
           universalExpenses: currentUniversal,
           deposits: currentDeposits,
@@ -160,7 +164,7 @@ export const ReportsPage: React.FC = () => {
       generateMonthlyReportPdf({
         activeMonth,
         financialSummary,
-        members,
+        members: activeMembers,
         bazaarExpenses: currentBazaar,
         universalExpenses: currentUniversal,
         deposits: currentDeposits,
@@ -215,7 +219,7 @@ export const ReportsPage: React.FC = () => {
           activeMonth,
           bazaarExpenses: currentBazaar,
           universalExpenses: currentUniversal,
-          members,
+          members: activeMembers,
           deposits: currentDeposits,
           generatedBy: managerName,
         });
@@ -228,7 +232,7 @@ export const ReportsPage: React.FC = () => {
         activeMonth,
         bazaarExpenses: currentBazaar,
         universalExpenses: currentUniversal,
-        members,
+        members: activeMembers,
         deposits: currentDeposits,
         generatedBy: managerName,
       });

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { X, Layers, CheckSquare, Square, Calculator } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatTaka, roundToTwo } from '../utils/calculations';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface Props {
   isOpen: boolean;
@@ -12,7 +13,7 @@ export const UniversalExpenseForm: React.FC<Props> = ({ isOpen, onClose }) => {
   const { members, activeMonth, addUniversalExpense } = useApp();
 
   const activeMembers = members.filter((m) => !m.isRemoved && m.monthId === activeMonth?.id);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateString();
 
   const [date, setDate] = useState(todayStr);
   const [description, setDescription] = useState('');

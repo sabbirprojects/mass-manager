@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, X, ArrowRight, CheckSquare, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CalculationMode } from '../types';
+import { getMonthStartAndEnd } from '../utils/dateUtils';
 
 interface Props {
   isOpen: boolean;
@@ -17,8 +18,7 @@ export const MonthCreateForm: React.FC<Props> = ({ isOpen, onClose }) => {
   const defaultMonthIndex = nextMonthDate.getMonth();
   const defaultMonthName = nextMonthDate.toLocaleString('en-US', { month: 'long' });
 
-  const defaultStart = new Date(defaultYear, defaultMonthIndex, 1).toISOString().slice(0, 10);
-  const defaultEnd = new Date(defaultYear, defaultMonthIndex + 1, 0).toISOString().slice(0, 10);
+  const { startDate: defaultStart, endDate: defaultEnd } = getMonthStartAndEnd(defaultYear, defaultMonthIndex);
 
   const [name, setName] = useState(`${defaultMonthName} ${defaultYear}`);
   const [startDate, setStartDate] = useState(defaultStart);

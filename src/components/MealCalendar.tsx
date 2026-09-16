@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Edit3, History, Utensils, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatMeal } from '../utils/calculations';
+import { getDaysInRange } from '../utils/dateUtils';
 import { MealUpdateForm } from './MealUpdateForm';
 import { MealUpdateHistory } from './MealUpdateHistory';
 
@@ -23,25 +24,10 @@ export const MealCalendar: React.FC = () => {
     return members.filter((m) => !m.isRemoved && m.monthId === activeMonth.id);
   }, [members, activeMonth]);
 
-  // Generate days of active month
+  // Generate days of active month safely
   const monthDays = useMemo(() => {
     if (!activeMonth) return [];
-    const days: { dateStr: string; dayNum: number; dayName: string }[] = [];
-
-    const start = new Date(activeMonth.startDate);
-    const end = new Date(activeMonth.endDate);
-    const curr = new Date(start);
-
-    while (curr <= end) {
-      const dateStr = curr.toISOString().slice(0, 10);
-      days.push({
-        dateStr,
-        dayNum: curr.getDate(),
-        dayName: curr.toLocaleDateString('en-US', { weekday: 'short' }),
-      });
-      curr.setDate(curr.getDate() + 1);
-    }
-    return days;
+    return getDaysInRange(activeMonth.startDate, activeMonth.endDate);
   }, [activeMonth]);
 
   // Map of meals: `${memberId}_${date}` => DailyMeal

@@ -615,6 +615,11 @@ export function validateAndRestoreBackup(
   if (targetUserId) {
     saveUserWorkspace(targetUserId, restoredWorkspace);
   }
+  for (const acc of (data.userAccounts as UserAccount[])) {
+    if (acc?.id) {
+      saveUserWorkspace(acc.id, restoredWorkspace);
+    }
+  }
 
   const restoredState: AppStateData = {
     userAccounts: data.userAccounts as UserAccount[],
@@ -622,7 +627,7 @@ export function validateAndRestoreBackup(
     ...restoredWorkspace,
   };
 
-  saveAllData(restoredState, targetUserId);
+  saveAllData(restoredState, targetUserId || data.userAccounts[0]?.id);
   return { success: true, restoredData: restoredState };
 }
 

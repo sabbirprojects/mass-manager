@@ -15,7 +15,7 @@ import {
   MonthFinancialSummary,
   UniversalExpense,
 } from '../types';
-import { formatMeal, formatTaka, roundToTwo } from './calculations';
+import { formatMeal, formatTaka, roundToTwo, getBazaarTypeLabel } from './calculations';
 
 export interface DualReportData {
   month: Month;
@@ -95,9 +95,12 @@ export function generateDualReportHtml(data: DualReportData): string {
         <tr style="${idx % 2 === 1 ? 'background-color:#f8fafc;' : ''}">
           <td style="white-space:nowrap;">${b.date}</td>
           <td style="font-weight:600;">${memberNameMap[b.memberId] || 'অজ্ঞাত'}</td>
-          <td>${b.description}</td>
-          <td style="text-transform:capitalize;">${b.type.replace('_', ' ')}</td>
-          <td style="text-align:right;font-weight:bold;">${formatTaka(b.amount)}</td>
+          <td>
+            ${b.description}
+            ${b.amount < 0 ? '<span style="display:inline-block;margin-left:4px;font-size:8px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:1px 3px;border-radius:2px;">কমন ফান্ড সমন্বয়</span>' : ''}
+          </td>
+          <td>${getBazaarTypeLabel(b.type)}</td>
+          <td style="text-align:right;font-weight:bold;${b.amount < 0 ? 'color:#b45309;' : ''}">${formatTaka(b.amount)}</td>
           <td style="color:#64748b;font-size:9px;">${b.createdBy}</td>
         </tr>
       `
@@ -268,8 +271,8 @@ export function generateDualReportHtml(data: DualReportData): string {
             </h1>
             <p style="margin:4px 0 0 0; font-size:12px; color:#475569; font-weight:600;">
               মাস: <span style="color:#0f172a;">${month.name}</span> | মোট বাজার ও ইউটিলিটি খরচ: ${formatTaka(
-    totalBazaarAmt + totalUniversalAmt
-  )}
+                summary.totalGeneralBazaar + totalUniversalAmt
+              )}
             </p>
           </div>
           <div style="text-align:right; font-size:10px; color:#64748b;">
@@ -284,7 +287,10 @@ export function generateDualReportHtml(data: DualReportData): string {
             <h3 style="font-size:12px; font-weight:700; color:#0f172a; margin:0;">
               ২.১ সাধারণ বাজার খরচ (General Daily Bazaar)
             </h3>
-            <span style="font-weight:bold; color:#0f766e; font-size:11px;">মোট বাজার: ${formatTaka(totalBazaarAmt)}</span>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span style="font-weight:bold; color:#0f766e; font-size:11px;">মোট বাজার: ${formatTaka(summary.totalGeneralBazaar)}</span>
+              ${totalBazaarAmt !== summary.totalGeneralBazaar ? `<span style="color:#64748b; font-size:9.5px;">(নেট ট্রানজ্যাকশন: ${formatTaka(totalBazaarAmt)})</span>` : ''}
+            </div>
           </div>
           <table style="width:100%; border-collapse:collapse; font-size:9.5px; border:1px solid #cbd5e1;">
             <thead>
@@ -300,6 +306,14 @@ export function generateDualReportHtml(data: DualReportData): string {
             <tbody>
               ${bazaarRowsHtml}
             </tbody>
+            ${bazaarExpenses.length > 0 ? `
+            <tfoot>
+              <tr style="background:#f1f5f9; font-weight:bold; border-top:1.5px solid #cbd5e1;">
+                <td colspan="4" style="padding:5px 6px;">মোট বাজার খরচ (মিল রেটে অন্তর্ভুক্ত কেনাকাটা)</td>
+                <td style="padding:5px 6px; text-align:right; color:#0f766e;">${formatTaka(summary.totalGeneralBazaar)}</td>
+                <td></td>
+              </tr>
+            </tfoot>` : ''}
           </table>
         </div>
 

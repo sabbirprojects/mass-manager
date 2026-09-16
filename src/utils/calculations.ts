@@ -63,6 +63,26 @@ export function formatMeal(count: number): string {
 }
 
 /**
+ * Returns user-friendly Bengali label for bazaar expense categories
+ */
+export function getBazaarTypeLabel(type: string): string {
+  switch (type) {
+    case 'fish_meat':
+      return 'মাছ-মাংস';
+    case 'vegetables':
+      return 'শাক-সবজি';
+    case 'spices_oil':
+      return 'মশলা-তেল';
+    case 'groceries':
+      return 'মুদি সামগ্রী';
+    case 'bazaar_general':
+      return 'সাধারণ বাজার';
+    default:
+      return 'অন্যান্য';
+  }
+}
+
+/**
  * Generates clean, human-readable file names without trailing underscores,
  * special character cascades, or corrupted Bengali bytes.
  * e.g. "September 2026 (সেপ্টেম্বর ২০২৬)" -> "September_2026"

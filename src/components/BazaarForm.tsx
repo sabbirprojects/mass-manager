@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, ShoppingBag, Calendar, User, DollarSign } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { BazaarExpenseType } from '../types';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface Props {
   isOpen: boolean;
@@ -12,7 +13,7 @@ export const BazaarForm: React.FC<Props> = ({ isOpen, onClose }) => {
   const { members, activeMonth, addBazaarExpense } = useApp();
 
   const activeMembers = members.filter((m) => !m.isRemoved && m.monthId === activeMonth?.id);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateString();
 
   const [date, setDate] = useState(todayStr);
   const [memberId, setMemberId] = useState(activeMembers[0]?.id || '');

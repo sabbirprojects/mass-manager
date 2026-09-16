@@ -8,7 +8,7 @@ import {
   MonthFinancialSummary,
   UniversalExpense,
 } from '../types';
-import { formatMeal, formatTaka, roundToTwo } from '../utils/calculations';
+import { formatMeal, formatTaka, roundToTwo, getBazaarTypeLabel } from '../utils/calculations';
 
 interface DualReportViewProps {
   month: Month;
@@ -318,9 +318,16 @@ export const DualReportView = React.forwardRef<HTMLDivElement, DualReportViewPro
               <h3 className="text-xs font-bold text-slate-800">
                 ২.১ সাধারণ বাজার খরচ (General Daily Bazaar Expenses)
               </h3>
-              <span className="font-bold text-teal-800 text-[11px]">
-                মোট বাজার: {formatTaka(totalBazaarAmt)}
-              </span>
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="font-bold text-teal-800">
+                  মোট বাজার: {formatTaka(summary.totalGeneralBazaar)}
+                </span>
+                {totalBazaarAmt !== summary.totalGeneralBazaar && (
+                  <span className="text-slate-500 text-[10px]">
+                    (নেট ট্রানজ্যাকশন: {formatTaka(totalBazaarAmt)})
+                  </span>
+                )}
+              </div>
             </div>
             <div className="overflow-x-auto border border-slate-200 rounded-lg">
               <table className="w-full text-left border-collapse text-[10px]">
@@ -346,11 +353,16 @@ export const DualReportView = React.forwardRef<HTMLDivElement, DualReportViewPro
                         </td>
                         <td className="py-1.5 px-2.5 text-slate-700 border-r border-slate-200">
                           {b.description}
+                          {b.amount < 0 && (
+                            <span className="ml-1.5 inline-block text-[9px] text-amber-800 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded font-medium">
+                              কমন ফান্ড সমন্বয়
+                            </span>
+                          )}
                         </td>
                         <td className="py-1.5 px-2 text-slate-600 border-r border-slate-200">
-                          {b.type === 'bazaar_general' ? 'সাধারণ বাজার' : 'বিশেষ বাজার'}
+                          {getBazaarTypeLabel(b.type)}
                         </td>
-                        <td className="py-1.5 px-2.5 text-right font-bold text-slate-900 border-r border-slate-200">
+                        <td className={`py-1.5 px-2.5 text-right font-bold border-r border-slate-200 ${b.amount < 0 ? 'text-amber-700' : 'text-slate-900'}`}>
                           {formatTaka(b.amount)}
                         </td>
                         <td className="py-1.5 px-2 text-slate-500 font-mono text-[9px]">
@@ -370,10 +382,10 @@ export const DualReportView = React.forwardRef<HTMLDivElement, DualReportViewPro
                   <tfoot>
                     <tr className="bg-slate-100 font-bold text-slate-900 border-t border-slate-300">
                       <td colSpan={4} className="py-1.5 px-2.5 border-r border-slate-300">
-                        মোট বাজার খরচ
+                        মোট বাজার খরচ (মিল রেটে অন্তর্ভুক্ত কেনাকাটা: {formatTaka(summary.totalGeneralBazaar)})
                       </td>
                       <td className="py-1.5 px-2.5 text-right border-r border-slate-300 text-teal-800">
-                        {formatTaka(totalBazaarAmt)}
+                        {formatTaka(summary.totalGeneralBazaar)}
                       </td>
                       <td className="py-1.5 px-2"></td>
                     </tr>

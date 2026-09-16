@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Calendar, Utensils, Save, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface Props {
   isOpen: boolean;
@@ -11,7 +12,7 @@ export const MealEntry: React.FC<Props> = ({ isOpen, onClose }) => {
   const { members, activeMonth, batchUpdateMealsForDate, dailyMeals } = useApp();
 
   const activeMembers = members.filter((m) => !m.isRemoved && m.monthId === activeMonth?.id);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateString();
   const [selectedDate, setSelectedDate] = useState(todayStr);
 
   // Initialize member meal inputs for selected date
