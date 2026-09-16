@@ -217,3 +217,20 @@ export interface AppBackupPayload {
 }
 
 export type ActiveNavTab = 'dashboard' | 'members' | 'bazaar' | 'meals' | 'reports' | 'settings';
+
+export interface UserWorkspaceData {
+  months: Month[];
+  activeMonthId: string | null;
+  members: Member[];
+  dailyMeals: DailyMeal[];
+  mealUpdateHistory: MealUpdateHistoryItem[];
+  bazaarExpenses: BazaarExpense[];
+  universalExpenses: UniversalExpense[];
+  deposits: Deposit[];
+  auditEvents: AuditEvent[];
+}
+
+export interface AppStateData extends UserWorkspaceData {
+  userAccounts: UserAccount[];
+  session: Session | null;
+}

@@ -35,6 +35,12 @@ import {
   saveAllData,
   saveUserWorkspace,
   validateAndRestoreBackup,
+  apiFetchUsers,
+  apiCreateUser,
+  apiLogin,
+  apiDeactivateUser,
+  safeGetItem,
+  STORAGE_KEYS,
 } from '../utils/storage';
 
 export interface ToastItem {
@@ -62,7 +68,7 @@ interface AppContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   createUserAccount: (username: string, displayName: string, password: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
-  deactivateUserAccount: (userId: string) => { success: boolean; error?: string };
+  deactivateUserAccount: (userId: string) => Promise<{ success: boolean; error?: string }> | { success: boolean; error?: string };
 
   // Months
   months: Month[];
@@ -146,6 +152,13 @@ const AppContext = createContext<AppContextType | null>(null);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [userAccounts, setUserAccounts] = useState<UserAccount[]>([]);
+  const userAccountsRef = React.useRef<UserAccount[]>([]);
+
+  const updateUserAccounts = (accounts: UserAccount[]) => {
+    userAccountsRef.current = accounts;
+    setUserAccounts(accounts);
+  };
+
   const [session, setSession] = useState<Session | null>(null);
   const [months, setMonths] = useState<Month[]>([]);
   const [activeMonthId, setActiveMonthIdState] = useState<string | null>(null);
@@ -211,12 +224,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // 1. Initial Data Load & Seed Check
+  // 1. Initial Data Load & Central Sync
   useEffect(() => {
     async function init() {
       try {
         const seedData = await initializeSeedDataIfEmpty();
-        setUserAccounts(seedData.userAccounts);
+        updateUserAccounts(seedData.userAccounts);
 
         if (seedData.session) {
           setSession(seedData.session);
@@ -249,6 +262,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     init();
+  }, []);
+
+  // 2. Cross-Device Synchronization
+  // Periodically and on window focus, update user accounts list so registrations from other browsers appear immediately
+  useEffect(() => {
+    const handleSync = async () => {
+      try {
+        const freshUsers = await apiFetchUsers();
+        if (freshUsers && freshUsers.length > 0) {
+          updateUserAccounts(freshUsers);
+        }
+      } catch {
+        // Ignore background sync errors
+      }
+    };
+
+    window.addEventListener('focus', handleSync);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleSync();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    const intervalId = setInterval(handleSync, 8000);
+
+    return () => {
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(intervalId);
+    };
   }, []);
 
   const activeMonth = useMemo(() => {
@@ -284,7 +327,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'পাসওয়ার্ড দিন (Password is required).' };
     }
 
-    const account = userAccounts.find((u) => u.username.toLowerCase() === trimmedUsername);
+    // 1. Attempt central API login first (works across all browsers and devices)
+    const apiRes = await apiLogin(trimmedUsername, password);
+    if (apiRes.success && apiRes.user && apiRes.session) {
+      if (apiRes.userAccounts) {
+        updateUserAccounts(apiRes.userAccounts);
+      }
+      setSession(apiRes.session);
+
+      const userWorkspace = apiRes.workspace || loadUserWorkspace(apiRes.user.id, apiRes.user.username);
+      setMonths(userWorkspace.months);
+      setActiveMonthIdState(userWorkspace.activeMonthId);
+      setMembers(userWorkspace.members);
+      setDailyMeals(userWorkspace.dailyMeals);
+      setMealUpdateHistory(userWorkspace.mealUpdateHistory);
+      setBazaarExpenses(userWorkspace.bazaarExpenses);
+      setUniversalExpenses(userWorkspace.universalExpenses);
+      setDeposits(userWorkspace.deposits);
+      setAuditEvents(userWorkspace.auditEvents);
+
+      recordAuditEvent('LOGIN', 'UserAccount', `User ${apiRes.user.username} logged in successfully`, apiRes.user.id);
+      showToast(`স্বাগতম, ${apiRes.user.displayName}! লগইন সফল হয়েছে।`, 'success');
+      return { success: true };
+    }
+
+    if (apiRes.error && apiRes.error !== 'Network error') {
+      return { success: false, error: apiRes.error };
+    }
+
+    // 2. Offline fallback login check using latest userAccountsRef
+    let currentUsers = userAccountsRef.current;
+    if (!currentUsers || currentUsers.length === 0) {
+      currentUsers = safeGetItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
+      updateUserAccounts(currentUsers);
+    }
+
+    const account = currentUsers.find((u) => u.username.toLowerCase() === trimmedUsername);
     if (!account) {
       return { success: false, error: 'ভুল ইউজারনেম বা পাসওয়ার্ড (Invalid credentials).' };
     }
@@ -308,7 +386,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lastActiveAt: now,
     };
 
-    // Load isolated workspace for THIS specific user account
     const userWorkspace = loadUserWorkspace(account.id, account.username);
     setMonths(userWorkspace.months);
     setActiveMonthIdState(userWorkspace.activeMonthId);
@@ -320,11 +397,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDeposits(userWorkspace.deposits);
     setAuditEvents(userWorkspace.auditEvents);
 
-    const updatedUsers = userAccounts.map((u) =>
+    const updatedUsers = currentUsers.map((u) =>
       u.id === account.id ? { ...u, lastLoginAt: now, updatedAt: now } : u
     );
 
-    setUserAccounts(updatedUsers);
+    updateUserAccounts(updatedUsers);
     setSession(newSession);
     saveAllData({ userAccounts: updatedUsers, session: newSession }, account.id);
 
@@ -368,11 +445,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে।' };
     }
 
-    const exists = userAccounts.some((u) => u.username.toLowerCase() === cleanUsername);
+    const currentUsers = userAccountsRef.current;
+    const exists = currentUsers.some((u) => u.username.toLowerCase() === cleanUsername);
     if (exists) {
       return { success: false, error: 'এই ইউজারনেম ইতিমধ্যে বিদ্যমান (Username already exists)।' };
     }
 
+    // 1. Attempt central API creation
+    const apiRes = await apiCreateUser({
+      username: cleanUsername,
+      displayName: displayName.trim(),
+      password,
+      phone: phone?.trim() || undefined,
+      createdBy: session?.username || 'system',
+    });
+
+    if (apiRes.success && apiRes.user) {
+      const updated = apiRes.userAccounts || [...userAccountsRef.current, apiRes.user];
+      updateUserAccounts(updated);
+      recordAuditEvent('CREATE_USER', 'UserAccount', `New authorized user ${cleanUsername} created`, apiRes.user.id);
+      showToast(`নতুন ব্যবহারকারী '${cleanUsername}' যোগ করা হয়েছে!`, 'success');
+      return { success: true };
+    }
+
+    if (apiRes.error && apiRes.error !== 'Network error') {
+      return { success: false, error: apiRes.error };
+    }
+
+    // 2. Offline fallback creation
     const passwordHash = await hashPassword(password);
     const now = new Date().toISOString();
     const newUser: UserAccount = {
@@ -389,11 +489,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedBy: session?.username || 'system',
     };
 
-    // Pre-initialize dedicated, isolated workspace for this new user account
     createDefaultUserWorkspace(newUser.id, newUser.username);
 
-    const updated = [...userAccounts, newUser];
-    setUserAccounts(updated);
+    const updated = [...userAccountsRef.current, newUser];
+    updateUserAccounts(updated);
     saveAllData({ userAccounts: updated });
 
     recordAuditEvent('CREATE_USER', 'UserAccount', `New authorized user ${cleanUsername} created`, newUser.id);
@@ -401,8 +500,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
-  const deactivateUserAccount = (userId: string): { success: boolean; error?: string } => {
-    const activeCount = userAccounts.filter((u) => u.isActive).length;
+  const deactivateUserAccount = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+    const currentUsers = userAccountsRef.current;
+    const activeCount = currentUsers.filter((u) => u.isActive).length;
     if (activeCount <= 1) {
       return { success: false, error: 'কমপক্ষে একটি সক্রিয় অ্যাকাউন্ট থাকা বাধ্যতামূলক।' };
     }
@@ -411,20 +511,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'নিজের বর্তমান লগইন করা অ্যাকাউন্ট নিষ্ক্রিয় করা যাবে না।' };
     }
 
-    const targetUser = userAccounts.find((u) => u.id === userId);
+    const targetUser = currentUsers.find((u) => u.id === userId);
     if (!targetUser) return { success: false, error: 'ব্যবহারকারী খুঁজে পাওয়া যায়নি।' };
 
-    const updated = userAccounts.map((u) =>
-      u.id === userId ? { ...u, isActive: false, updatedAt: new Date().toISOString() } : u
-    );
-
-    setUserAccounts(updated);
-    saveAllData({ userAccounts: updated });
+    const apiRes = await apiDeactivateUser(userId, session?.userId);
+    if (apiRes.success && apiRes.userAccounts) {
+      updateUserAccounts(apiRes.userAccounts);
+    } else {
+      const updated = currentUsers.map((u) =>
+        u.id === userId ? { ...u, isActive: false, updatedAt: new Date().toISOString() } : u
+      );
+      updateUserAccounts(updated);
+      saveAllData({ userAccounts: updated });
+    }
 
     recordAuditEvent('DEACTIVATE_USER', 'UserAccount', `Deactivated user account ${targetUser.username}`, userId);
     showToast(`ব্যবহারকারী '${targetUser.username}' নিষ্ক্রিয় করা হয়েছে।`, 'info');
     return { success: true };
   };
+
 
   // Month Operations
   const createMonth = (params: {
@@ -612,7 +717,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const refreshState = () => {
     const data = loadAllData(session?.userId, session?.username);
-    setUserAccounts(data.userAccounts);
+    updateUserAccounts(data.userAccounts);
     if (data.session) {
       setSession(data.session);
     }
@@ -1134,8 +1239,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // Reload local React state from restored data
-      setUserAccounts(result.restoredData.userAccounts);
+      updateUserAccounts(result.restoredData.userAccounts);
       setSession(null); // Require clean re-login
+
+      // Sync restore to central server
+      fetch('/api/backup/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload: parsed, userId: session?.userId }),
+      }).catch((e) => console.warn('Sync restore to server failed:', e));
       setMonths(result.restoredData.months);
       setActiveMonthIdState(result.restoredData.activeMonthId);
       setMembers(result.restoredData.members);

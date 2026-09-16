@@ -15,13 +15,17 @@ import {
   Session,
   UniversalExpense,
   UserAccount,
+  UserWorkspaceData,
+  AppStateData,
 } from '../types';
 import { generateId, hashPassword } from './crypto';
+
+export type { UserWorkspaceData, AppStateData };
 
 export const CURRENT_SCHEMA_VERSION = 1;
 export const APP_VERSION = '1.0.0';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   SCHEMA_VERSION: 'smm_schema_version',
   USER_ACCOUNTS: 'smm_user_accounts',
   SESSION: 'smm_active_session',
@@ -36,24 +40,7 @@ const STORAGE_KEYS = {
   AUDIT_EVENTS: 'smm_audit_events',
 };
 
-export interface UserWorkspaceData {
-  months: Month[];
-  activeMonthId: string | null;
-  members: Member[];
-  dailyMeals: DailyMeal[];
-  mealUpdateHistory: MealUpdateHistoryItem[];
-  bazaarExpenses: BazaarExpense[];
-  universalExpenses: UniversalExpense[];
-  deposits: Deposit[];
-  auditEvents: AuditEvent[];
-}
-
-export interface AppStateData extends UserWorkspaceData {
-  userAccounts: UserAccount[];
-  session: Session | null;
-}
-
-function safeGetItem<T>(key: string, defaultValue: T): T {
+export function safeGetItem<T>(key: string, defaultValue: T): T {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return defaultValue;
@@ -64,7 +51,7 @@ function safeGetItem<T>(key: string, defaultValue: T): T {
   }
 }
 
-function safeSetItem<T>(key: string, value: T): void {
+export function safeSetItem<T>(key: string, value: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (err) {
@@ -72,10 +59,152 @@ function safeSetItem<T>(key: string, value: T): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Backend API Integration Layer
+// Provides cross-browser and cross-device sync with localStorage offline fallback
+// ---------------------------------------------------------------------------
+
+export async function apiFetchUsers(): Promise<UserAccount[]> {
+  try {
+    const res = await fetch('/api/users');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.userAccounts)) {
+        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
+        return data.userAccounts;
+      }
+    }
+  } catch (err) {
+    console.warn('API /api/users request failed, using local cache:', err);
+  }
+  return safeGetItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
+}
+
+export async function apiCreateUser(params: {
+  username: string;
+  displayName: string;
+  password: string;
+  phone?: string;
+  createdBy?: string;
+}): Promise<{ success: boolean; error?: string; user?: UserAccount; userAccounts?: UserAccount[] }> {
+  try {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      if (Array.isArray(data.userAccounts)) {
+        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
+      }
+      return { success: true, user: data.user, userAccounts: data.userAccounts };
+    }
+    return { success: false, error: data.error || 'Failed to create user' };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Network error';
+    return { success: false, error: msg };
+  }
+}
+
+export async function apiLogin(
+  username: string,
+  password: string
+): Promise<{
+  success: boolean;
+  error?: string;
+  user?: UserAccount;
+  session?: Session;
+  workspace?: UserWorkspaceData;
+  userAccounts?: UserAccount[];
+}> {
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      if (Array.isArray(data.userAccounts)) {
+        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
+      }
+      if (data.session) {
+        safeSetItem(STORAGE_KEYS.SESSION, data.session);
+      }
+      if (data.workspace && data.user) {
+        saveUserWorkspace(data.user.id, data.workspace);
+      }
+      return {
+        success: true,
+        user: data.user,
+        session: data.session,
+        workspace: data.workspace,
+        userAccounts: data.userAccounts,
+      };
+    }
+    return { success: false, error: data.error || 'Invalid credentials' };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Network error';
+    return { success: false, error: msg };
+  }
+}
+
+export async function apiDeactivateUser(
+  userId: string,
+  actorUserId?: string
+): Promise<{ success: boolean; error?: string; userAccounts?: UserAccount[] }> {
+  try {
+    const res = await fetch(`/api/users/${encodeURIComponent(userId)}/deactivate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actorUserId }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      if (Array.isArray(data.userAccounts)) {
+        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
+      }
+      return { success: true, userAccounts: data.userAccounts };
+    }
+    return { success: false, error: data.error || 'Failed to deactivate' };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Network error';
+    return { success: false, error: msg };
+  }
+}
+
 /**
- * Initializes default demo data if the application is accessed for the first time.
+ * Initializes default demo data or fetches from server if accessed across devices.
  */
 export async function initializeSeedDataIfEmpty(): Promise<AppStateData> {
+  const session = safeGetItem<Session | null>(STORAGE_KEYS.SESSION, null);
+
+  // 1. Try to initialize from central server
+  try {
+    const res = await fetch(`/api/init?userId=${encodeURIComponent(session?.userId || '')}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.userAccounts) && data.userAccounts.length > 0) {
+        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
+
+        const activeWorkspace = data.workspace || data.globalWorkspace;
+        if (session?.userId && activeWorkspace) {
+          saveUserWorkspace(session.userId, activeWorkspace);
+        }
+
+        return {
+          userAccounts: data.userAccounts,
+          session,
+          ...activeWorkspace,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Central server not reachable, using local fallback:', err);
+  }
+
+  // 2. Offline fallback to local storage
   const existingUsers = safeGetItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
 
   if (existingUsers.length > 0) {
@@ -83,6 +212,7 @@ export async function initializeSeedDataIfEmpty(): Promise<AppStateData> {
   }
 
   // Generate initial demo users with hashed passwords
+
   const passwordHash = await hashPassword('mess1234');
   const now = new Date().toISOString();
 
@@ -542,6 +672,34 @@ export function saveAllData(state: Partial<AppStateData>, targetUserId?: string)
     safeSetItem(STORAGE_KEYS.UNIVERSAL_EXPENSES, state.universalExpenses);
   if (state.deposits !== undefined) safeSetItem(STORAGE_KEYS.DEPOSITS, state.deposits);
   if (state.auditEvents !== undefined) safeSetItem(STORAGE_KEYS.AUDIT_EVENTS, state.auditEvents);
+
+  // Sync state to central server (non-blocking)
+  try {
+    const workspaceData: Partial<UserWorkspaceData> = {};
+    if (state.months !== undefined) workspaceData.months = state.months;
+    if (state.activeMonthId !== undefined) workspaceData.activeMonthId = state.activeMonthId;
+    if (state.members !== undefined) workspaceData.members = state.members;
+    if (state.dailyMeals !== undefined) workspaceData.dailyMeals = state.dailyMeals;
+    if (state.mealUpdateHistory !== undefined) workspaceData.mealUpdateHistory = state.mealUpdateHistory;
+    if (state.bazaarExpenses !== undefined) workspaceData.bazaarExpenses = state.bazaarExpenses;
+    if (state.universalExpenses !== undefined) workspaceData.universalExpenses = state.universalExpenses;
+    if (state.deposits !== undefined) workspaceData.deposits = state.deposits;
+    if (state.auditEvents !== undefined) workspaceData.auditEvents = state.auditEvents;
+
+    fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: activeUserId,
+        workspace: Object.keys(workspaceData).length > 0 ? workspaceData : undefined,
+        userAccounts: state.userAccounts,
+      }),
+    }).catch((err) => {
+      console.warn('Sync to /api/save failed:', err);
+    });
+  } catch {
+    // Ignore fetch creation errors
+  }
 }
 
 /**
