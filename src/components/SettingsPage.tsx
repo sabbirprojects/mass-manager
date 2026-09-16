@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Settings, Users, Database, Shield, Sliders, Lock, Check } from 'lucide-react';
+import { Settings, Users, Database, Shield, Sliders, Lock, Check, Cloud } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserAccountList } from './UserAccountList';
 import { BackupRestore } from './BackupRestore';
 import { AuditHistory } from './AuditHistory';
 import { LockStatus } from './LockStatus';
+import { SupabaseConfig } from './SupabaseConfig';
 import { formatTaka } from '../utils/calculations';
 
 export const SettingsPage: React.FC = () => {
   const { activeMonth, updateMonthCalculationMode, showToast } = useApp();
-  const [activeTab, setActiveTab] = useState<'calc' | 'users' | 'backup' | 'audit'>('calc');
+  const [activeTab, setActiveTab] = useState<'calc' | 'users' | 'cloud' | 'backup' | 'audit'>('calc');
 
   const [mode, setMode] = useState<'auto' | 'fixed'>(activeMonth?.calculationMode || 'auto');
   const [fixedRate, setFixedRate] = useState<number | string>(
@@ -66,6 +67,20 @@ export const SettingsPage: React.FC = () => {
         >
           <Users className="w-3.5 h-3.5 text-sky-600" />
           <span>ইউজার অ্যাকাউন্টস</span>
+        </button>
+
+        <button
+          id="settings-tab-cloud"
+          type="button"
+          onClick={() => setActiveTab('cloud')}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition ${
+            activeTab === 'cloud'
+              ? 'bg-white text-slate-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+          <span>ক্লাউড সিঙ্ক (Supabase)</span>
         </button>
 
         <button
@@ -195,6 +210,9 @@ export const SettingsPage: React.FC = () => {
 
       {/* Tab: User Accounts */}
       {activeTab === 'users' && <UserAccountList />}
+
+      {/* Tab: Cloud Database (Supabase) */}
+      {activeTab === 'cloud' && <SupabaseConfig />}
 
       {/* Tab: Backup & Restore */}
       {activeTab === 'backup' && <BackupRestore />}

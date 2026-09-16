@@ -19,6 +19,15 @@ import {
   AppStateData,
 } from '../types';
 import { generateId, hashPassword } from './crypto';
+import {
+  isSupabaseConfigured,
+  supabaseFetchUsers,
+  supabaseCreateUser,
+  supabaseLogin,
+  supabaseDeactivateUser,
+  supabaseLoadWorkspace,
+  supabaseSaveWorkspace,
+} from './supabase';
 
 export type { UserWorkspaceData, AppStateData };
 
@@ -60,23 +69,53 @@ export function safeSetItem<T>(key: string, value: T): void {
 }
 
 // ---------------------------------------------------------------------------
-// Backend API Integration Layer
-// Provides cross-browser and cross-device sync with localStorage offline fallback
+// Backend API & Cloud Persistence Layer
+// Priority: Supabase Cloud -> Local Node API -> Offline LocalStorage
 // ---------------------------------------------------------------------------
 
-export async function apiFetchUsers(): Promise<UserAccount[]> {
+async function safeFetchJson<T>(
+  url: string,
+  options?: RequestInit
+): Promise<{ ok: boolean; data?: T; error?: string }> {
   try {
-    const res = await fetch('/api/users');
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && Array.isArray(data.userAccounts)) {
-        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
-        return data.userAccounts;
+    const res = await fetch(url, options);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { ok: false, error: 'Endpoint is not a JSON API' };
+    }
+    const data = await res.json();
+    return { ok: res.ok, data, error: data?.error };
+  } catch (err) {
+    return { ok: false, error: 'Network error' };
+  }
+}
+
+export async function apiFetchUsers(): Promise<UserAccount[]> {
+  // 1. Try Supabase cloud database first
+  if (isSupabaseConfigured()) {
+    try {
+      const sbUsers = await supabaseFetchUsers();
+      if (sbUsers && sbUsers.length > 0) {
+        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, sbUsers);
+        return sbUsers;
       }
+    } catch (err) {
+      console.warn('Supabase fetch users failed:', err);
+    }
+  }
+
+  // 2. Try local Node API server
+  try {
+    const jsonRes = await safeFetchJson<{ success: boolean; userAccounts: UserAccount[] }>('/api/users');
+    if (jsonRes.ok && jsonRes.data?.success && Array.isArray(jsonRes.data.userAccounts)) {
+      safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, jsonRes.data.userAccounts);
+      return jsonRes.data.userAccounts;
     }
   } catch (err) {
-    console.warn('API /api/users request failed, using local cache:', err);
+    console.warn('Local API /api/users request failed:', err);
   }
+
+  // 3. Fallback to local storage cache
   return safeGetItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
 }
 
@@ -87,24 +126,44 @@ export async function apiCreateUser(params: {
   phone?: string;
   createdBy?: string;
 }): Promise<{ success: boolean; error?: string; user?: UserAccount; userAccounts?: UserAccount[] }> {
-  try {
-    const res = await fetch('/api/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      if (Array.isArray(data.userAccounts)) {
-        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
+  // 1. Try Supabase cloud database first
+  if (isSupabaseConfigured()) {
+    const sbRes = await supabaseCreateUser(params);
+    if (sbRes.success) {
+      if (sbRes.userAccounts) {
+        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, sbRes.userAccounts);
       }
-      return { success: true, user: data.user, userAccounts: data.userAccounts };
+      return sbRes;
     }
-    return { success: false, error: data.error || 'Failed to create user' };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Network error';
-    return { success: false, error: msg };
+    if (sbRes.error && sbRes.error !== 'Supabase is not configured') {
+      return sbRes;
+    }
   }
+
+  // 2. Try local Node API server
+  const jsonRes = await safeFetchJson<{
+    success: boolean;
+    error?: string;
+    user?: UserAccount;
+    userAccounts?: UserAccount[];
+  }>('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+
+  if (jsonRes.ok && jsonRes.data?.success) {
+    if (Array.isArray(jsonRes.data.userAccounts)) {
+      safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, jsonRes.data.userAccounts);
+    }
+    return { success: true, user: jsonRes.data.user, userAccounts: jsonRes.data.userAccounts };
+  }
+
+  if (jsonRes.error && jsonRes.error !== 'Endpoint is not a JSON API' && jsonRes.error !== 'Network error') {
+    return { success: false, error: jsonRes.error };
+  }
+
+  return { success: false, error: 'Network error' };
 }
 
 export async function apiLogin(
@@ -118,60 +177,88 @@ export async function apiLogin(
   workspace?: UserWorkspaceData;
   userAccounts?: UserAccount[];
 }> {
-  try {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      if (Array.isArray(data.userAccounts)) {
-        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
-      }
-      if (data.session) {
-        safeSetItem(STORAGE_KEYS.SESSION, data.session);
-      }
-      if (data.workspace && data.user) {
-        saveUserWorkspace(data.user.id, data.workspace);
-      }
-      return {
-        success: true,
-        user: data.user,
-        session: data.session,
-        workspace: data.workspace,
-        userAccounts: data.userAccounts,
-      };
+  // 1. Try Supabase cloud database first
+  if (isSupabaseConfigured()) {
+    const sbRes = await supabaseLogin(username, password);
+    if (sbRes.success) {
+      if (sbRes.userAccounts) safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, sbRes.userAccounts);
+      if (sbRes.session) safeSetItem(STORAGE_KEYS.SESSION, sbRes.session);
+      if (sbRes.workspace && sbRes.user) saveUserWorkspace(sbRes.user.id, sbRes.workspace);
+      return sbRes;
     }
-    return { success: false, error: data.error || 'Invalid credentials' };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Network error';
-    return { success: false, error: msg };
+    // If Supabase returned a credential failure (e.g. invalid username/password or deactivated)
+    if (sbRes.error && sbRes.error !== 'Supabase is not configured') {
+      return sbRes;
+    }
   }
+
+  // 2. Try local Node API server
+  const jsonRes = await safeFetchJson<{
+    success: boolean;
+    error?: string;
+    user?: UserAccount;
+    session?: Session;
+    workspace?: UserWorkspaceData;
+    userAccounts?: UserAccount[];
+  }>('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+
+  if (jsonRes.ok && jsonRes.data?.success) {
+    const data = jsonRes.data;
+    if (Array.isArray(data.userAccounts)) safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
+    if (data.session) safeSetItem(STORAGE_KEYS.SESSION, data.session);
+    if (data.workspace && data.user) saveUserWorkspace(data.user.id, data.workspace);
+    return {
+      success: true,
+      user: data.user,
+      session: data.session,
+      workspace: data.workspace,
+      userAccounts: data.userAccounts,
+    };
+  }
+
+  if (jsonRes.error && jsonRes.error !== 'Endpoint is not a JSON API' && jsonRes.error !== 'Network error') {
+    return { success: false, error: jsonRes.error };
+  }
+
+  return { success: false, error: 'Network error' };
 }
 
 export async function apiDeactivateUser(
   userId: string,
   actorUserId?: string
 ): Promise<{ success: boolean; error?: string; userAccounts?: UserAccount[] }> {
-  try {
-    const res = await fetch(`/api/users/${encodeURIComponent(userId)}/deactivate`, {
+  // 1. Try Supabase cloud database
+  if (isSupabaseConfigured()) {
+    const sbRes = await supabaseDeactivateUser(userId, actorUserId);
+    if (sbRes.success && sbRes.userAccounts) {
+      safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, sbRes.userAccounts);
+      return sbRes;
+    }
+    if (sbRes.error && sbRes.error !== 'Supabase is not configured') {
+      return sbRes;
+    }
+  }
+
+  // 2. Try local Node API server
+  const jsonRes = await safeFetchJson<{ success: boolean; error?: string; userAccounts?: UserAccount[] }>(
+    `/api/users/${encodeURIComponent(userId)}/deactivate`,
+    {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ actorUserId }),
-    });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      if (Array.isArray(data.userAccounts)) {
-        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
-      }
-      return { success: true, userAccounts: data.userAccounts };
     }
-    return { success: false, error: data.error || 'Failed to deactivate' };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Network error';
-    return { success: false, error: msg };
+  );
+
+  if (jsonRes.ok && jsonRes.data?.success && Array.isArray(jsonRes.data.userAccounts)) {
+    safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, jsonRes.data.userAccounts);
+    return { success: true, userAccounts: jsonRes.data.userAccounts };
   }
+
+  return { success: false, error: 'Network error' };
 }
 
 /**
@@ -180,36 +267,64 @@ export async function apiDeactivateUser(
 export async function initializeSeedDataIfEmpty(): Promise<AppStateData> {
   const session = safeGetItem<Session | null>(STORAGE_KEYS.SESSION, null);
 
-  // 1. Try to initialize from central server
-  try {
-    const res = await fetch(`/api/init?userId=${encodeURIComponent(session?.userId || '')}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && Array.isArray(data.userAccounts) && data.userAccounts.length > 0) {
-        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, data.userAccounts);
-
-        const activeWorkspace = data.workspace || data.globalWorkspace;
-        if (session?.userId && activeWorkspace) {
-          saveUserWorkspace(session.userId, activeWorkspace);
+  // 1. Try Supabase cloud database first (primary for Vercel / multi-device)
+  if (isSupabaseConfigured()) {
+    try {
+      const supabaseUsers = await supabaseFetchUsers();
+      if (supabaseUsers && supabaseUsers.length > 0) {
+        safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, supabaseUsers);
+        let workspace: UserWorkspaceData | null = null;
+        if (session?.userId) {
+          workspace = await supabaseLoadWorkspace(session.userId);
+        } else {
+          workspace = await supabaseLoadWorkspace('global');
         }
-
-        return {
-          userAccounts: data.userAccounts,
-          session,
-          ...activeWorkspace,
-        };
+        if (workspace) {
+          if (session?.userId) saveUserWorkspace(session.userId, workspace);
+          return {
+            userAccounts: supabaseUsers,
+            session,
+            ...workspace,
+          };
+        }
       }
+    } catch (err) {
+      console.warn('Supabase cloud fetch failed, trying local fallback:', err);
+    }
+  }
+
+  // 2. Try local Node server (/api/init)
+  try {
+    const jsonRes = await safeFetchJson<{
+      success: boolean;
+      userAccounts: UserAccount[];
+      workspace?: UserWorkspaceData;
+      globalWorkspace?: UserWorkspaceData;
+    }>(`/api/init?userId=${encodeURIComponent(session?.userId || '')}`);
+
+    if (jsonRes.ok && jsonRes.data?.success && Array.isArray(jsonRes.data.userAccounts) && jsonRes.data.userAccounts.length > 0) {
+      safeSetItem(STORAGE_KEYS.USER_ACCOUNTS, jsonRes.data.userAccounts);
+      const activeWorkspace = jsonRes.data.workspace || jsonRes.data.globalWorkspace;
+      if (session?.userId && activeWorkspace) {
+        saveUserWorkspace(session.userId, activeWorkspace);
+      }
+      return {
+        userAccounts: jsonRes.data.userAccounts,
+        session,
+        ...activeWorkspace,
+      };
     }
   } catch (err) {
     console.warn('Central server not reachable, using local fallback:', err);
   }
 
-  // 2. Offline fallback to local storage
+  // 3. Offline fallback to local storage
   const existingUsers = safeGetItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
 
   if (existingUsers.length > 0) {
     return loadAllData();
   }
+
 
   // Generate initial demo users with hashed passwords
 
@@ -672,6 +787,24 @@ export function saveAllData(state: Partial<AppStateData>, targetUserId?: string)
     safeSetItem(STORAGE_KEYS.UNIVERSAL_EXPENSES, state.universalExpenses);
   if (state.deposits !== undefined) safeSetItem(STORAGE_KEYS.DEPOSITS, state.deposits);
   if (state.auditEvents !== undefined) safeSetItem(STORAGE_KEYS.AUDIT_EVENTS, state.auditEvents);
+
+  // Sync state to Supabase cloud (non-blocking)
+  if (isSupabaseConfigured() && activeUserId) {
+    const workspaceData: Partial<UserWorkspaceData> = {};
+    if (state.months !== undefined) workspaceData.months = state.months;
+    if (state.activeMonthId !== undefined) workspaceData.activeMonthId = state.activeMonthId;
+    if (state.members !== undefined) workspaceData.members = state.members;
+    if (state.dailyMeals !== undefined) workspaceData.dailyMeals = state.dailyMeals;
+    if (state.mealUpdateHistory !== undefined) workspaceData.mealUpdateHistory = state.mealUpdateHistory;
+    if (state.bazaarExpenses !== undefined) workspaceData.bazaarExpenses = state.bazaarExpenses;
+    if (state.universalExpenses !== undefined) workspaceData.universalExpenses = state.universalExpenses;
+    if (state.deposits !== undefined) workspaceData.deposits = state.deposits;
+    if (state.auditEvents !== undefined) workspaceData.auditEvents = state.auditEvents;
+
+    supabaseSaveWorkspace(activeUserId, workspaceData).catch((err) => {
+      console.warn('Sync to Supabase failed:', err);
+    });
+  }
 
   // Sync state to central server (non-blocking)
   try {
