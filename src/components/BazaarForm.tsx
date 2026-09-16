@@ -17,6 +17,7 @@ export const BazaarForm: React.FC<Props> = ({ isOpen, onClose }) => {
   const [date, setDate] = useState(todayStr);
   const [memberId, setMemberId] = useState(activeMembers[0]?.id || '');
   const [amount, setAmount] = useState<number | string>('');
+  const [fundingSource, setFundingSource] = useState<'personal' | 'shared'>('personal');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<BazaarExpenseType>('groceries');
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +34,9 @@ export const BazaarForm: React.FC<Props> = ({ isOpen, onClose }) => {
     e.preventDefault();
     setError(null);
 
-    const numAmount = parseFloat(amount.toString());
-    if (isNaN(numAmount) || numAmount <= 0) {
-      setError('সঠিক টাকার পরিমাণ দিন (0-এর বেশি হতে হবে)।');
+    const rawAmount = parseFloat(amount.toString());
+    if (isNaN(rawAmount) || rawAmount === 0) {
+      setError('সঠিক টাকার পরিমাণ দিন (০ ব্যতীত)।');
       return;
     }
 
@@ -43,6 +44,9 @@ export const BazaarForm: React.FC<Props> = ({ isOpen, onClose }) => {
       setError('বাজারকারী সদস্য নির্বাচন করুন।');
       return;
     }
+
+    // Negative market entry if shared funds selected or typed as negative
+    const numAmount = fundingSource === 'shared' ? -Math.abs(rawAmount) : rawAmount;
 
     const res = addBazaarExpense({
       memberId,
@@ -55,6 +59,7 @@ export const BazaarForm: React.FC<Props> = ({ isOpen, onClose }) => {
     if (res.success) {
       setAmount('');
       setDescription('');
+      setFundingSource('personal');
       onClose();
     } else {
       setError(res.error || 'বাজার খরচ সংরক্ষণ করতে সমস্যা হয়েছে।');
@@ -89,6 +94,47 @@ export const BazaarForm: React.FC<Props> = ({ isOpen, onClose }) => {
         )}
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
+          {/* Funding Source Selector */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              বাজারের ফান্ডের উৎস (Payment Source)
+            </label>
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setFundingSource('personal');
+                  if (typeof amount === 'number' && amount < 0) setAmount(Math.abs(amount));
+                  else if (typeof amount === 'string' && amount.startsWith('-'))
+                    setAmount(amount.replace('-', ''));
+                }}
+                className={`py-1.5 px-2 text-xs font-semibold rounded-lg transition ${
+                  fundingSource === 'personal'
+                    ? 'bg-white text-sky-800 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                ব্যক্তিগত ফান্ড (+)
+              </button>
+              <button
+                type="button"
+                onClick={() => setFundingSource('shared')}
+                className={`py-1.5 px-2 text-xs font-semibold rounded-lg transition ${
+                  fundingSource === 'shared'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                শেয়ার্ড ফান্ড (-)
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+              {fundingSource === 'shared'
+                ? 'মেসের শেয়ার্ড ফান্ড থেকে বাজার: এই টাকা স্বয়ংক্রিয়ভাবে সদস্যের মোট ডিপোজিট থেকে কর্তন হবে।'
+                : 'সদস্যের নিজস্ব পকেট থেকে বাজার: এই টাকা সদস্যের অ্যাকাউন্টে বাজার ক্রেডিট হিসেবে যোগ হবে।'}
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">তারিখ *</label>
@@ -106,18 +152,27 @@ export const BazaarForm: React.FC<Props> = ({ isOpen, onClose }) => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                টাকার পরিমাণ (৳) *
+                টাকার পরিমাণ (৳) * {fundingSource === 'shared' && <span className="text-amber-600 font-bold">(- নেগেটিভ)</span>}
               </label>
               <input
                 id="bazaar-amount-input"
                 type="number"
                 step="any"
-                min="1"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setAmount(val);
+                  if (parseFloat(val) < 0) {
+                    setFundingSource('shared');
+                  }
+                }}
+                placeholder={fundingSource === 'shared' ? '-0.00' : '0.00'}
                 required
-                className="w-full px-3 py-2 text-sm font-semibold bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-sky-500/20 focus:border-sky-600"
+                className={`w-full px-3 py-2 text-sm font-semibold bg-white border rounded-xl focus:outline-hidden focus:ring-2 ${
+                  fundingSource === 'shared'
+                    ? 'border-amber-300 text-amber-900 focus:ring-amber-500/20 focus:border-amber-600'
+                    : 'border-slate-200 text-slate-900 focus:ring-sky-500/20 focus:border-sky-600'
+                }`}
               />
             </div>
           </div>

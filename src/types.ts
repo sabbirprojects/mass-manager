@@ -115,6 +115,7 @@ export interface UniversalExpense {
   amount: number;
   applicableMemberIds: string[]; // Members sharing this expense
   perMemberShare: number; // Calculated = amount / applicableMemberIds.length
+  payerMemberId?: string | null; // Selected member who paid/funded this expense
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -178,6 +179,7 @@ export interface MemberFinancialSummary {
   mealCost: number;
   personalBazaarCost: number;
   universalCostShare: number;
+  universalExpensePaid: number;
   totalDeposit: number;
   totalCost: number;
   finalBalance: number;

@@ -130,6 +130,7 @@ export function calculateMemberMeals(
 
 /**
  * Calculates total general bazaar expense assigned to each member and whole month.
+ * Only positive bazaar amounts represent personal bazaar funded by member pocket.
  */
 export function calculatePersonalBazaarCosts(
   members: Member[],
@@ -144,8 +145,9 @@ export function calculatePersonalBazaarCosts(
   }
 
   for (const b of bazaarExpenses) {
-    if (costMap[b.memberId] !== undefined) {
-      costMap[b.memberId] = roundToTwo(costMap[b.memberId] + (Number(b.amount) || 0));
+    const amt = Number(b.amount) || 0;
+    if (amt > 0 && costMap[b.memberId] !== undefined) {
+      costMap[b.memberId] = roundToTwo(costMap[b.memberId] + amt);
     }
   }
 
@@ -182,11 +184,37 @@ export function calculateUniversalCostShares(
 }
 
 /**
+ * Calculates universal expenses paid by each member (to be credited directly to their account).
+ */
+export function calculateUniversalExpensesPaid(
+  members: Member[],
+  universalExpenses: UniversalExpense[]
+): Record<string, number> {
+  const paidMap: Record<string, number> = {};
+
+  for (const m of members) {
+    if (!m.isRemoved) {
+      paidMap[m.id] = 0;
+    }
+  }
+
+  for (const ue of universalExpenses) {
+    if (ue.payerMemberId && paidMap[ue.payerMemberId] !== undefined) {
+      paidMap[ue.payerMemberId] = roundToTwo(paidMap[ue.payerMemberId] + (Number(ue.amount) || 0));
+    }
+  }
+
+  return paidMap;
+}
+
+/**
  * Calculates total deposits for each member (including initial deposit).
+ * Automatically deducts negative market entries to reflect shopping done using shared funds.
  */
 export function calculateMemberDeposits(
   members: Member[],
-  deposits: Deposit[]
+  deposits: Deposit[],
+  bazaarExpenses: BazaarExpense[] = []
 ): Record<string, number> {
   const depositMap: Record<string, number> = {};
 
@@ -202,6 +230,14 @@ export function calculateMemberDeposits(
     }
   }
 
+  // Deduct negative market entries (shopping done using shared mess funds)
+  for (const b of bazaarExpenses) {
+    const amt = Number(b.amount) || 0;
+    if (amt < 0 && depositMap[b.memberId] !== undefined) {
+      depositMap[b.memberId] = roundToTwo(depositMap[b.memberId] + amt);
+    }
+  }
+
   return depositMap;
 }
 
@@ -213,7 +249,7 @@ export function calculateMemberDeposits(
  * Fixed Rate Mode: Meal Rate = fixedMealRate
  * Meal Cost = member's Total Meal × Meal Rate
  * Member Total Cost = Meal Cost + Universal Cost Share
- * Member Final Balance = Previous Balance + Deposit + Grocery/Bazaar Paid - Total Cost
+ * Member Final Balance = Previous Balance + Deposit + Grocery Paid + Universal Paid - Total Cost
  *
  * Balance Status:
  * > 0 => 'receivable' (Mess owes member / Surplus)
@@ -245,18 +281,20 @@ export function computeMonthFinancialSummary(
   const personalBazaarMap = calculatePersonalBazaarCosts(activeMembers, activeBazaar);
   let totalGeneralBazaar = 0;
   for (const b of activeBazaar) {
-    totalGeneralBazaar = roundToTwo(totalGeneralBazaar + (Number(b.amount) || 0));
+    // Both personal out-of-pocket and shared-fund bazaar contribute to mess grocery consumption
+    totalGeneralBazaar = roundToTwo(totalGeneralBazaar + Math.abs(Number(b.amount) || 0));
   }
 
-  // 3. Calculate Universal Expenses
+  // 3. Calculate Universal Expenses (shares divided among members + direct credit to payer)
   const universalShareMap = calculateUniversalCostShares(activeMembers, activeUniversal);
+  const universalPaidMap = calculateUniversalExpensesPaid(activeMembers, activeUniversal);
   let totalUniversalExpense = 0;
   for (const u of activeUniversal) {
     totalUniversalExpense = roundToTwo(totalUniversalExpense + (Number(u.amount) || 0));
   }
 
-  // 4. Calculate Deposits
-  const depositMap = calculateMemberDeposits(activeMembers, activeDeposits);
+  // 4. Calculate Deposits (with negative market entries automatically deducted)
+  const depositMap = calculateMemberDeposits(activeMembers, activeDeposits, activeBazaar);
   let totalDeposits = 0;
   for (const dep of Object.values(depositMap)) {
     totalDeposits = roundToTwo(totalDeposits + dep);
@@ -281,13 +319,17 @@ export function computeMonthFinancialSummary(
     const memMealCost = roundToTwo(memTotalMeal * mealRate);
     const memPersonalBazaar = personalBazaarMap[m.id] || 0;
     const memUniversalShare = universalShareMap[m.id] || 0;
+    const memUniversalPaid = universalPaidMap[m.id] || 0;
     const memTotalCost = roundToTwo(memMealCost + memUniversalShare);
     const memDeposit = depositMap[m.id] || 0;
     const memPrevBal = roundToTwo(Number(m.previousBalance) || 0);
 
-    // Final Balance = Previous Balance + Deposit + Grocery Expenses (Bazaar) - Total Cost
-    // Grocery expenses paid by the member increase the total balance, crediting the member
-    const memFinalBalance = roundToTwo(memPrevBal + memDeposit + memPersonalBazaar - memTotalCost);
+    // Final Balance = Previous Balance + Deposit + Grocery Expenses + Universal Expenses Paid - Total Cost
+    // When a member is selected for universal expense, the total amount is divided equally among members
+    // (deducted via universalCostShare), and credited directly to that selected member's account (+memUniversalPaid).
+    const memFinalBalance = roundToTwo(
+      memPrevBal + memDeposit + memPersonalBazaar + memUniversalPaid - memTotalCost
+    );
 
     let status: 'receivable' | 'payable' | 'settled' = 'settled';
     if (memFinalBalance > 0.009) {
@@ -310,6 +352,7 @@ export function computeMonthFinancialSummary(
       mealCost: memMealCost,
       personalBazaarCost: memPersonalBazaar,
       universalCostShare: memUniversalShare,
+      universalExpensePaid: memUniversalPaid,
       totalDeposit: memDeposit,
       totalCost: memTotalCost,
       finalBalance: memFinalBalance,

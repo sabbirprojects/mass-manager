@@ -17,6 +17,7 @@ export const UniversalExpenseForm: React.FC<Props> = ({ isOpen, onClose }) => {
   const [date, setDate] = useState(todayStr);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState<number | string>('');
+  const [payerMemberId, setPayerMemberId] = useState<string>('');
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(
     activeMembers.map((m) => m.id)
   );
@@ -68,11 +69,13 @@ export const UniversalExpenseForm: React.FC<Props> = ({ isOpen, onClose }) => {
       description: description.trim() || 'Universal Expense',
       amount: numAmount,
       applicableMemberIds: selectedMemberIds,
+      payerMemberId: payerMemberId || null,
     });
 
     if (res.success) {
       setAmount('');
       setDescription('');
+      setPayerMemberId('');
       onClose();
     } else {
       setError(res.error || 'ইউনিভার্সাল খরচ যোগ করতে সমস্যা হয়েছে।');
@@ -101,7 +104,7 @@ export const UniversalExpenseForm: React.FC<Props> = ({ isOpen, onClose }) => {
         </div>
 
         <p className="mt-2 text-xs text-slate-500">
-          মেসের সার্বজনীন খরচ (যেমন: ওয়াইফাই, খালা বিল, পেপার বিল ইত্যাদি) যা মিল রেটের অন্তর্ভুক্ত নয় এবং নির্বাচিত সদস্যদের মধ্যে সমান ভাগে ভাগ হবে।
+          মেসের সার্বজনীন খরচ (যেমন: ওয়াইফাই, খালা বিল, পেপার বিল ইত্যাদি)। কোনো সদস্য পরিশোধ করলে তার নাম নির্বাচন করুন; পুরো টাকাটি সবার ব্যালেন্স থেকে সমভাগে কেটে ওই সদস্যের অ্যাকাউন্টে সরাসরি জমা (Credit) হবে।
         </p>
 
         {error && (
@@ -153,6 +156,30 @@ export const UniversalExpenseForm: React.FC<Props> = ({ isOpen, onClose }) => {
               required
               className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              পরিশোধকারী সদস্য (Paid By Member)
+            </label>
+            <select
+              id="universal-payer-select"
+              value={payerMemberId}
+              onChange={(e) => setPayerMemberId(e.target.value)}
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+            >
+              <option value="">মেসের সাধারণ তহবিল (None / Mess Common Fund)</option>
+              {activeMembers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} (সদস্যের অ্যাকাউন্টে ক্রেডিট হবে)
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-slate-500">
+              {payerMemberId
+                ? 'সদস্য নির্বাচিত: মোট টাকা সবার ব্যালেন্স থেকে সমভাগে কেটে ওই সদস্যের অ্যাকাউন্টে সরাসরি জমা (Credit) হবে।'
+                : 'মেসের কমন ফান্ড থেকে দেওয়া হলে খালি রাখুন (সবার থেকে ভাগ কাটা হবে, কাউকে আলাদা ক্রেডিট দেওয়া হবে না)।'}
+            </p>
           </div>
 
           {/* Member Multi-Select with Live Share Preview */}

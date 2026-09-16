@@ -38,7 +38,7 @@ export const MemberCard: React.FC<Props> = ({
           </div>
           <div className="min-w-0">
             <h4 className="text-sm font-bold text-slate-900 truncate">{member.name}</h4>
-            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 flex-wrap">
               <span>মিল: <b>{formatMeal(summary?.totalMeal || 0)}</b></span>
               <span>•</span>
               <span>জমা: <b>{formatTaka(summary?.totalDeposit || 0)}</b></span>
@@ -46,6 +46,12 @@ export const MemberCard: React.FC<Props> = ({
                 <>
                   <span>•</span>
                   <span>বাজার: <b className="text-sky-700">{formatTaka(summary?.personalBazaarCost || 0)}</b></span>
+                </>
+              )}
+              {(summary?.universalExpensePaid || 0) > 0 && (
+                <>
+                  <span>•</span>
+                  <span>ইউনিক জমা: <b className="text-indigo-700">{formatTaka(summary?.universalExpensePaid || 0)}</b></span>
                 </>
               )}
             </div>
@@ -89,7 +95,7 @@ export const MemberCard: React.FC<Props> = ({
       {/* Expanded Breakdown Accordion */}
       {isExpanded && (
         <div className="px-4 pb-4 pt-2 border-t border-slate-100 bg-slate-50/50 space-y-3 animate-in fade-in">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
             <div className="p-2 bg-white rounded-xl border border-slate-200">
               <span className="text-slate-400 block text-[10px] font-medium">পূর্বের ব্যালেন্স</span>
               <span className="font-semibold text-slate-800">
@@ -112,6 +118,18 @@ export const MemberCard: React.FC<Props> = ({
               <span className="text-sky-700 block text-[10px] font-medium">বাজার খরচ (+)</span>
               <span className="font-bold text-sky-800">
                 {formatTaka(summary?.personalBazaarCost || 0)}
+              </span>
+            </div>
+            <div className="p-2 bg-white rounded-xl border border-indigo-100 bg-indigo-50/40">
+              <span className="text-indigo-700 block text-[10px] font-medium">ইউনিক পরিশোধ (+)</span>
+              <span className="font-bold text-indigo-800">
+                {formatTaka(summary?.universalExpensePaid || 0)}
+              </span>
+            </div>
+            <div className="p-2 bg-white rounded-xl border border-emerald-100 bg-emerald-50/40">
+              <span className="text-emerald-700 block text-[10px] font-medium">মোট জমা (+)</span>
+              <span className="font-bold text-emerald-800">
+                {formatTaka(summary?.totalDeposit || 0)}
               </span>
             </div>
           </div>

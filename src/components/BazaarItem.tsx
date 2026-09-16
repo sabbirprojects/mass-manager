@@ -28,24 +28,38 @@ export const BazaarItem: React.FC<Props> = ({ expense, memberName, isLocked, onD
   };
 
   const badge = getCategoryBadge(expense.type);
+  const isSharedFund = expense.amount < 0;
 
   return (
     <div
       id={`bazaar-item-${expense.id}`}
-      className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition flex items-center justify-between gap-3"
+      className={`p-3.5 bg-white rounded-xl border shadow-xs hover:border-slate-300 transition flex items-center justify-between gap-3 ${
+        isSharedFund ? 'border-amber-200/90 bg-amber-50/20' : 'border-slate-200/80'
+      }`}
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center shrink-0 border border-sky-100">
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+            isSharedFund
+              ? 'bg-amber-100 text-amber-800 border-amber-200'
+              : 'bg-sky-50 text-sky-700 border-sky-100'
+          }`}
+        >
           <ShoppingBag className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h4 className="text-sm font-bold text-slate-900 truncate">{expense.description}</h4>
             <span
               className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${badge.color}`}
             >
               {badge.label}
             </span>
+            {isSharedFund && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                শেয়ার্ড ফান্ড (ডিপোজিট কর্তন)
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
             <span className="flex items-center gap-1">
@@ -66,7 +80,16 @@ export const BazaarItem: React.FC<Props> = ({ expense, memberName, isLocked, onD
 
       <div className="flex items-center gap-3 shrink-0">
         <div className="text-right">
-          <span className="text-base font-bold text-slate-900">{formatTaka(expense.amount)}</span>
+          <span
+            className={`text-base font-bold ${
+              isSharedFund ? 'text-amber-800' : 'text-slate-900'
+            }`}
+          >
+            {formatTaka(expense.amount)}
+          </span>
+          <span className="block text-[10px] text-slate-400">
+            {isSharedFund ? 'ডিপোজিট কর্তন' : 'ব্যক্তিগত বাজার'}
+          </span>
         </div>
 
         {!isLocked && (

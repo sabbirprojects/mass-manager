@@ -49,6 +49,7 @@ export const BalanceSummary: React.FC = () => {
                 <th className="py-3 px-3 text-right">ইউনিভার্সাল ভাগ</th>
                 <th className="py-3 px-3 text-right font-bold text-slate-900">সর্বমোট খরচ</th>
                 <th className="py-3 px-3 text-right font-bold text-sky-700">বাজার খরচ (+)</th>
+                <th className="py-3 px-3 text-right font-bold text-indigo-700">ইউনিক পরিশোধ (+)</th>
                 <th className="py-3 px-3 text-right font-bold text-emerald-700">মোট জমা (+)</th>
                 <th className="py-3 px-3.5 text-right font-bold">চূড়ান্ত ব্যালেন্স</th>
                 <th className="py-3 px-3 text-center">স্ট্যাটাস</th>
@@ -81,6 +82,9 @@ export const BalanceSummary: React.FC = () => {
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-sky-700">
                       {formatTaka(m.personalBazaarCost)}
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-indigo-700">
+                      {formatTaka(m.universalExpensePaid || 0)}
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-emerald-700">
                       {formatTaka(m.totalDeposit)}
@@ -131,6 +135,9 @@ export const BalanceSummary: React.FC = () => {
                 <td className="py-3 px-3 text-right">{formatTaka(financialSummary.totalCost)}</td>
                 <td className="py-3 px-3 text-right text-sky-700 font-bold">
                   {formatTaka(financialSummary.totalGeneralBazaar)}
+                </td>
+                <td className="py-3 px-3 text-right text-indigo-700 font-bold">
+                  {formatTaka(summaries.reduce((acc, curr) => acc + (curr.universalExpensePaid || 0), 0))}
                 </td>
                 <td className="py-3 px-3 text-right text-emerald-700 font-bold">
                   {formatTaka(financialSummary.totalDeposits)}

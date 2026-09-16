@@ -105,7 +105,13 @@ interface AppContextType {
 
   // Universal Expenses
   universalExpenses: UniversalExpense[];
-  addUniversalExpense: (params: { date: string; description: string; amount: number; applicableMemberIds: string[] }) => { success: boolean; error?: string };
+  addUniversalExpense: (params: {
+    date: string;
+    description: string;
+    amount: number;
+    applicableMemberIds: string[];
+    payerMemberId?: string | null;
+  }) => { success: boolean; error?: string };
   deleteUniversalExpense: (id: string) => { success: boolean; error?: string };
 
   // Deposits
@@ -900,16 +906,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'লক করা মাসে বাজার খরচ যোগ করা যাবে না।' };
     }
     if (!params.memberId) return { success: false, error: 'বাজারকারী সদস্য নির্বাচন করুন।' };
-    if (!params.amount || params.amount <= 0) return { success: false, error: 'সঠিক টাকার পরিমাণ লিখুন।' };
+    if (params.amount === undefined || isNaN(params.amount) || params.amount === 0) {
+      return { success: false, error: 'সঠিক টাকার পরিমাণ লিখুন (০ ব্যতীত)।' };
+    }
 
     const member = members.find((m) => m.id === params.memberId);
     const now = new Date().toISOString();
+    const isNegative = params.amount < 0;
     const newExpense: BazaarExpense = {
       id: generateId('baz'),
       monthId: activeMonth.id,
       memberId: params.memberId,
       date: params.date,
-      description: params.description.trim() || 'General Bazaar',
+      description: params.description.trim() || (isNegative ? 'Shared Funds Bazaar' : 'General Bazaar'),
       amount: roundToTwo(params.amount),
       type: params.type,
       createdAt: now,
@@ -922,13 +931,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBazaarExpenses(updated);
     saveAllData({ bazaarExpenses: updated });
 
-    recordAuditEvent(
-      'ADD_BAZAAR',
-      'BazaarExpense',
-      `Added bazaar ৳${newExpense.amount} (${newExpense.description}) by ${member?.name || 'Unknown'}`,
-      newExpense.id
-    );
-    showToast(`বাজার খরচ ৳${newExpense.amount} সফলভাবে যুক্ত হয়েছে!`, 'success');
+    if (isNegative) {
+      recordAuditEvent(
+        'ADD_BAZAAR',
+        'BazaarExpense',
+        `Added shared funds bazaar ৳${Math.abs(newExpense.amount)} (${newExpense.description}) deducted from ${member?.name || 'Member'}'s deposit`,
+        newExpense.id
+      );
+      showToast(`শেয়ার্ড ফান্ড বাজার ৳${Math.abs(newExpense.amount)} যুক্ত হয়েছে (${member?.name || 'সদস্য'}-এর ডিপোজিট থেকে কর্তন)!`, 'success');
+    } else {
+      recordAuditEvent(
+        'ADD_BAZAAR',
+        'BazaarExpense',
+        `Added bazaar ৳${newExpense.amount} (${newExpense.description}) by ${member?.name || 'Unknown'}`,
+        newExpense.id
+      );
+      showToast(`বাজার খরচ ৳${newExpense.amount} সফলভাবে যুক্ত হয়েছে!`, 'success');
+    }
     return { success: true };
   };
 
@@ -956,6 +975,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     description: string;
     amount: number;
     applicableMemberIds: string[];
+    payerMemberId?: string | null;
   }): { success: boolean; error?: string } => {
     if (!session) return { success: false, error: 'লগইন আবশ্যক।' };
     if (!activeMonth) return { success: false, error: 'সক্রিয় মাস নির্বাচন করুন।' };
@@ -969,6 +989,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const perShare = roundToTwo(params.amount / params.applicableMemberIds.length);
     const now = new Date().toISOString();
+    const payerMember = params.payerMemberId ? members.find((m) => m.id === params.payerMemberId) : null;
     const newUni: UniversalExpense = {
       id: generateId('uni'),
       monthId: activeMonth.id,
@@ -977,6 +998,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       amount: roundToTwo(params.amount),
       applicableMemberIds: params.applicableMemberIds,
       perMemberShare: perShare,
+      payerMemberId: params.payerMemberId || null,
       createdAt: now,
       updatedAt: now,
       createdBy: session.username,
@@ -987,13 +1009,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUniversalExpenses(updated);
     saveAllData({ universalExpenses: updated });
 
+    const payerInfo = payerMember ? ` (পরিশোধকারী: ${payerMember.name} কে সরাসরি ক্রেডিট)` : '';
     recordAuditEvent(
       'ADD_UNIVERSAL',
       'UniversalExpense',
-      `Added universal expense ৳${newUni.amount} (${newUni.description}) shared by ${newUni.applicableMemberIds.length} members`,
+      `Added universal expense ৳${newUni.amount} (${newUni.description}) shared by ${newUni.applicableMemberIds.length} members${payerInfo}`,
       newUni.id
     );
-    showToast(`ইউনিভার্সাল খরচ ৳${newUni.amount} যুক্ত হয়েছে (মাথাপিছু ৳${perShare})।`, 'success');
+    showToast(
+      `ইউনিভার্সাল খরচ ৳${newUni.amount} যুক্ত হয়েছে (মাথাপিছু ৳${perShare})${
+        payerMember ? ` এবং ${payerMember.name}-এর অ্যাকাউন্টে জমা হয়েছে` : ''
+      }।`,
+      'success'
+    );
     return { success: true };
   };
 

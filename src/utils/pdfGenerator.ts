@@ -168,6 +168,7 @@ export function generateMonthlyPDFReport(
       formatTakaAscii(m.universalCostShare),
       formatTakaAscii(m.totalCost),
       formatTakaAscii(m.personalBazaarCost),
+      formatTakaAscii(m.universalExpensePaid || 0),
       formatTakaAscii(m.totalDeposit),
       formatTakaAscii(m.finalBalance),
       statusLabel,
@@ -186,6 +187,7 @@ export function generateMonthlyPDFReport(
         'Universal',
         'Total Cost',
         'Bazaar (+)',
+        'Uni Paid (+)',
         'Deposit (+)',
         'Final Balance',
         'Status',
@@ -204,10 +206,10 @@ export function generateMonthlyPDFReport(
     },
     columnStyles: {
       0: { cellWidth: 'auto', fontStyle: 'bold' },
-      8: { fontStyle: 'bold' },
+      9: { fontStyle: 'bold' },
     },
     didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 8) {
+      if (data.section === 'body' && data.column.index === 9) {
         const val = data.cell.raw as string;
         if (val.startsWith('-')) {
           data.cell.styles.textColor = [220, 38, 38]; // Red
@@ -225,7 +227,7 @@ export function generateMonthlyPDFReport(
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      '* Final Balance Formula: Previous Balance + Deposit + Bazaar - Total Cost. Positive (+) means member will receive refund; Negative (-) means member owes due.',
+      '* Final Balance Formula: Previous Balance + Deposit + Bazaar + Universal Paid - Total Cost. Positive (+) means member will receive refund; Negative (-) means member owes due.',
       40,
       finalY
     );

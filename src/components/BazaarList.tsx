@@ -44,8 +44,14 @@ export const BazaarList: React.FC = () => {
     });
   }, [currentMonthExpenses, searchTerm, selectedMember, memberMap]);
 
-  const totalAmount = useMemo(() => {
-    return filteredExpenses.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  const totalGroceries = useMemo(() => {
+    return filteredExpenses.reduce((sum, b) => sum + Math.abs(Number(b.amount) || 0), 0);
+  }, [filteredExpenses]);
+
+  const sharedFundsTotal = useMemo(() => {
+    return filteredExpenses
+      .filter((b) => Number(b.amount) < 0)
+      .reduce((sum, b) => sum + Math.abs(Number(b.amount) || 0), 0);
   }, [filteredExpenses]);
 
   const handleDelete = (id: string) => {
@@ -66,11 +72,16 @@ export const BazaarList: React.FC = () => {
     <div id="bazaar-list-container" className="space-y-3.5">
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-bold text-slate-900">সাধারণ বাজার খাতা (General Bazaar)</h3>
             <span className="text-xs px-2 py-0.5 bg-sky-50 text-sky-700 font-bold rounded-full">
-              মোট: {formatTaka(totalAmount)}
+              মোট বাজার: {formatTaka(totalGroceries)}
             </span>
+            {sharedFundsTotal > 0 && (
+              <span className="text-xs px-2 py-0.5 bg-amber-50 text-amber-800 font-bold rounded-full border border-amber-200">
+                শেয়ার্ড ফান্ড কর্তন: {formatTaka(sharedFundsTotal)}
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500">
             বাজারের খরচ মিল রেটের অংশ হিসেবে সব মিলের মধ্যে সমানভাবে ভাগ হবে।
