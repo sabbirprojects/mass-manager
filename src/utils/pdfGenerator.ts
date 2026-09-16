@@ -165,9 +165,9 @@ export function generateMonthlyPDFReport(
       formatTakaAscii(m.previousBalance),
       formatMeal(m.totalMeal),
       formatTakaAscii(m.mealCost),
-      formatTakaAscii(m.personalBazaarCost),
       formatTakaAscii(m.universalCostShare),
       formatTakaAscii(m.totalCost),
+      formatTakaAscii(m.personalBazaarCost),
       formatTakaAscii(m.totalDeposit),
       formatTakaAscii(m.finalBalance),
       statusLabel,
@@ -183,10 +183,10 @@ export function generateMonthlyPDFReport(
         'Prev Bal',
         'Meals',
         'Meal Cost',
-        'Bazaar Cost',
         'Universal',
         'Total Cost',
-        'Total Deposit',
+        'Bazaar (+)',
+        'Deposit (+)',
         'Final Balance',
         'Status',
       ],
@@ -225,7 +225,7 @@ export function generateMonthlyPDFReport(
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      '* Final Balance Formula: Previous Balance + Deposit - Total Cost. Positive (+) means member will receive refund; Negative (-) means member owes due.',
+      '* Final Balance Formula: Previous Balance + Deposit + Bazaar - Total Cost. Positive (+) means member will receive refund; Negative (-) means member owes due.',
       40,
       finalY
     );

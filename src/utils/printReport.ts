@@ -73,9 +73,9 @@ export function generateDualReportHtml(data: DualReportData): string {
         <td style="text-align:right;">${formatTaka(m.previousBalance)}</td>
         <td style="text-align:center;font-weight:bold;color:#0f766e;">${formatMeal(m.totalMeal)}</td>
         <td style="text-align:right;">${formatTaka(m.mealCost)}</td>
-        <td style="text-align:right;">${formatTaka(m.personalBazaarCost)}</td>
         <td style="text-align:right;">${formatTaka(m.universalCostShare)}</td>
         <td style="text-align:right;font-weight:bold;color:#0f172a;">${formatTaka(m.totalCost)}</td>
+        <td style="text-align:right;font-weight:bold;color:#0284c7;">${formatTaka(m.personalBazaarCost)}</td>
         <td style="text-align:right;font-weight:bold;color:#15803d;">${formatTaka(m.totalDeposit)}</td>
         <td style="text-align:right;font-weight:bold;color:${
           isReceivable ? '#15803d' : isPayable ? '#b91c1c' : '#334155'
@@ -214,10 +214,10 @@ export function generateDualReportHtml(data: DualReportData): string {
               <th style="padding:6px; text-align:right; border:1px solid #334155;">পূর্বের ব্যালেন্স</th>
               <th style="padding:6px; text-align:center; border:1px solid #334155;">মিল</th>
               <th style="padding:6px; text-align:right; border:1px solid #334155;">মিল খরচ</th>
-              <th style="padding:6px; text-align:right; border:1px solid #334155;">ব্যক্তিগত বাজার</th>
               <th style="padding:6px; text-align:right; border:1px solid #334155;">সার্বজনীন খরচ</th>
               <th style="padding:6px; text-align:right; border:1px solid #334155; font-weight:bold;">সর্বমোট খরচ</th>
-              <th style="padding:6px; text-align:right; border:1px solid #334155; font-weight:bold;">মোট জমা</th>
+              <th style="padding:6px; text-align:right; border:1px solid #334155; font-weight:bold; color:#38bdf8;">বাজার খরচ (+)</th>
+              <th style="padding:6px; text-align:right; border:1px solid #334155; font-weight:bold; color:#4ade80;">মোট জমা (+)</th>
               <th style="padding:6px 8px; text-align:right; border:1px solid #334155; font-weight:bold;">চূড়ান্ত ব্যালেন্স</th>
               <th style="padding:6px; text-align:center; border:1px solid #334155;">স্ট্যাটাস</th>
             </tr>
@@ -235,17 +235,19 @@ export function generateDualReportHtml(data: DualReportData): string {
               <td style="padding:6px; text-align:right; border:1px solid #cbd5e1;">${formatTaka(
                 roundToTwo(summary.totalMeals * summary.mealRate)
               )}</td>
-              <td style="padding:6px; text-align:right; border:1px solid #cbd5e1;">${formatTaka(summary.totalGeneralBazaar)}</td>
               <td style="padding:6px; text-align:right; border:1px solid #cbd5e1;">${formatTaka(summary.totalUniversalExpense)}</td>
               <td style="padding:6px; text-align:right; border:1px solid #cbd5e1;">${formatTaka(summary.totalCost)}</td>
-              <td style="padding:6px; text-align:right; border:1px solid #cbd5e1; color:#15803d;">${formatTaka(summary.totalDeposits)}</td>
-              <td style="padding:6px 8px; text-align:right; border:1px solid #cbd5e1;">—</td>
+              <td style="padding:6px; text-align:right; border:1px solid #cbd5e1; color:#0284c7; font-weight:bold;">${formatTaka(summary.totalGeneralBazaar)}</td>
+              <td style="padding:6px; text-align:right; border:1px solid #cbd5e1; color:#15803d; font-weight:bold;">${formatTaka(summary.totalDeposits)}</td>
+              <td style="padding:6px 8px; border:1px solid #cbd5e1; font-weight:bold;">${formatTaka(
+                memberSummaries.reduce((sum, m) => sum + m.finalBalance, 0)
+              )}</td>
               <td style="padding:6px; text-align:center; border:1px solid #cbd5e1;">হিসাব নিরীক্ষিত</td>
             </tr>
           </tfoot>
         </table>
         <div style="font-size:9px; color:#64748b; font-style:italic;">
-          * চূড়ান্ত ব্যালেন্স সূত্র: পূর্বের ব্যালেন্স + মোট জমা − সর্বমোট খরচ। ধনাত্মক (+) হলে সদস্য মেস থেকে ফেরত পাবেন; ঋণাত্মক (-) হলে সদস্যকে মেসে বকেয়া পরিশোধ করতে হবে।
+          * চূড়ান্ত ব্যালেন্স সূত্র: পূর্বের ব্যালেন্স + মোট জমা + বাজার খরচ − সর্বমোট খরচ। ধনাত্মক (+) হলে সদস্য মেস থেকে ফেরত পাবেন; ঋণাত্মক (-) হলে সদস্যকে মেসে বকেয়া পরিশোধ করতে হবে।
         </div>
       </section>
 

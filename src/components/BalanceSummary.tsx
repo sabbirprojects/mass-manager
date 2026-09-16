@@ -20,7 +20,7 @@ export const BalanceSummary: React.FC = () => {
             <span>মাসিক সামগ্রিক ব্যালেন্স শিট ({activeMonth.name})</span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            সূত্র: পূর্বের ব্যালেন্স + মোট জমা − সর্বমোট খরচ = চূড়ান্ত ব্যালেন্স
+            সূত্র: পূর্বের ব্যালেন্স + মোট জমা + বাজার খরচ − সর্বমোট খরচ = চূড়ান্ত ব্যালেন্স
           </p>
         </div>
 
@@ -46,10 +46,10 @@ export const BalanceSummary: React.FC = () => {
                 <th className="py-3 px-3 text-right">পূর্বের ব্যালেন্স</th>
                 <th className="py-3 px-3 text-center">মিল</th>
                 <th className="py-3 px-3 text-right">মিল খরচ</th>
-                <th className="py-3 px-3 text-right">ব্যক্তিগত বাজার</th>
                 <th className="py-3 px-3 text-right">ইউনিভার্সাল ভাগ</th>
                 <th className="py-3 px-3 text-right font-bold text-slate-900">সর্বমোট খরচ</th>
-                <th className="py-3 px-3 text-right font-bold text-emerald-700">মোট জমা</th>
+                <th className="py-3 px-3 text-right font-bold text-sky-700">বাজার খরচ (+)</th>
+                <th className="py-3 px-3 text-right font-bold text-emerald-700">মোট জমা (+)</th>
                 <th className="py-3 px-3.5 text-right font-bold">চূড়ান্ত ব্যালেন্স</th>
                 <th className="py-3 px-3 text-center">স্ট্যাটাস</th>
               </tr>
@@ -74,13 +74,13 @@ export const BalanceSummary: React.FC = () => {
                       {formatTaka(m.mealCost)}
                     </td>
                     <td className="py-3 px-3 text-right text-slate-700 font-medium">
-                      {formatTaka(m.personalBazaarCost)}
-                    </td>
-                    <td className="py-3 px-3 text-right text-slate-700 font-medium">
                       {formatTaka(m.universalCostShare)}
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-slate-900">
                       {formatTaka(m.totalCost)}
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-sky-700">
+                      {formatTaka(m.personalBazaarCost)}
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-emerald-700">
                       {formatTaka(m.totalDeposit)}
@@ -116,7 +116,9 @@ export const BalanceSummary: React.FC = () => {
             <tfoot>
               <tr className="bg-slate-100/80 font-bold text-slate-900 border-t-2 border-slate-200 text-xs">
                 <td className="py-3 px-3.5 sticky left-0 bg-slate-100">মোট সর্বজনীন</td>
-                <td className="py-3 px-3 text-right">—</td>
+                <td className="py-3 px-3 text-right">
+                  {formatTaka(summaries.reduce((acc, curr) => acc + curr.previousBalance, 0))}
+                </td>
                 <td className="py-3 px-3 text-center">{formatMeal(financialSummary.totalMeals)}</td>
                 <td className="py-3 px-3 text-right">
                   {formatTaka(
@@ -124,17 +126,17 @@ export const BalanceSummary: React.FC = () => {
                   )}
                 </td>
                 <td className="py-3 px-3 text-right">
-                  {formatTaka(financialSummary.totalGeneralBazaar)}
-                </td>
-                <td className="py-3 px-3 text-right">
                   {formatTaka(financialSummary.totalUniversalExpense)}
                 </td>
                 <td className="py-3 px-3 text-right">{formatTaka(financialSummary.totalCost)}</td>
-                <td className="py-3 px-3 text-right text-emerald-700">
+                <td className="py-3 px-3 text-right text-sky-700 font-bold">
+                  {formatTaka(financialSummary.totalGeneralBazaar)}
+                </td>
+                <td className="py-3 px-3 text-right text-emerald-700 font-bold">
                   {formatTaka(financialSummary.totalDeposits)}
                 </td>
                 <td className="py-3 px-3.5 text-right font-extrabold text-teal-900">
-                  {formatTaka(financialSummary.totalReceivable - financialSummary.totalPayable)}
+                  {formatTaka(summaries.reduce((acc, curr) => acc + curr.finalBalance, 0))}
                 </td>
                 <td className="py-3 px-3 text-center text-[11px] text-slate-500">সমাপ্তি</td>
               </tr>

@@ -42,6 +42,12 @@ export const MemberCard: React.FC<Props> = ({
               <span>মিল: <b>{formatMeal(summary?.totalMeal || 0)}</b></span>
               <span>•</span>
               <span>জমা: <b>{formatTaka(summary?.totalDeposit || 0)}</b></span>
+              {(summary?.personalBazaarCost || 0) > 0 && (
+                <>
+                  <span>•</span>
+                  <span>বাজার: <b className="text-sky-700">{formatTaka(summary?.personalBazaarCost || 0)}</b></span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -97,22 +103,22 @@ export const MemberCard: React.FC<Props> = ({
               </span>
             </div>
             <div className="p-2 bg-white rounded-xl border border-slate-200">
-              <span className="text-slate-400 block text-[10px] font-medium">ব্যক্তিগত বাজার খরচ</span>
-              <span className="font-semibold text-slate-800">
-                {formatTaka(summary?.personalBazaarCost || 0)}
-              </span>
-            </div>
-            <div className="p-2 bg-white rounded-xl border border-slate-200">
-              <span className="text-slate-400 block text-[10px] font-medium">ইউনিভার্সাল খরচ ভাগ</span>
+              <span className="text-slate-400 block text-[10px] font-medium">সার্বজনীন খরচ ভাগ</span>
               <span className="font-semibold text-slate-800">
                 {formatTaka(summary?.universalCostShare || 0)}
+              </span>
+            </div>
+            <div className="p-2 bg-white rounded-xl border border-sky-100 bg-sky-50/40">
+              <span className="text-sky-700 block text-[10px] font-medium">বাজার খরচ (+)</span>
+              <span className="font-bold text-sky-800">
+                {formatTaka(summary?.personalBazaarCost || 0)}
               </span>
             </div>
           </div>
 
           <div className="flex items-center justify-between text-xs pt-1 text-slate-600">
             <div>
-              সর্বমোট খরচ: <b className="text-slate-900">{formatTaka(summary?.totalCost || 0)}</b>
+              সর্বমোট খরচ (মিল + সার্বজনীন): <b className="text-slate-900">{formatTaka(summary?.totalCost || 0)}</b>
             </div>
             {member.phone && (
               <div className="flex items-center gap-1 text-slate-500">

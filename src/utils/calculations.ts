@@ -212,8 +212,8 @@ export function calculateMemberDeposits(
  * Auto Rate Mode: Meal Rate = Total General Bazaar Cost ÷ Total Meal (0 if Total Meal is 0)
  * Fixed Rate Mode: Meal Rate = fixedMealRate
  * Meal Cost = member's Total Meal × Meal Rate
- * Member Total Cost = Meal Cost + Personal Bazaar Cost + Universal Cost Share
- * Member Final Balance = Previous Balance + Deposit - Total Cost
+ * Member Total Cost = Meal Cost + Universal Cost Share
+ * Member Final Balance = Previous Balance + Deposit + Grocery/Bazaar Paid - Total Cost
  *
  * Balance Status:
  * > 0 => 'receivable' (Mess owes member / Surplus)
@@ -281,12 +281,13 @@ export function computeMonthFinancialSummary(
     const memMealCost = roundToTwo(memTotalMeal * mealRate);
     const memPersonalBazaar = personalBazaarMap[m.id] || 0;
     const memUniversalShare = universalShareMap[m.id] || 0;
-    const memTotalCost = roundToTwo(memMealCost + memPersonalBazaar + memUniversalShare);
+    const memTotalCost = roundToTwo(memMealCost + memUniversalShare);
     const memDeposit = depositMap[m.id] || 0;
     const memPrevBal = roundToTwo(Number(m.previousBalance) || 0);
 
-    // Final Balance = Previous Balance + Deposit - Total Cost
-    const memFinalBalance = roundToTwo(memPrevBal + memDeposit - memTotalCost);
+    // Final Balance = Previous Balance + Deposit + Grocery Expenses (Bazaar) - Total Cost
+    // Grocery expenses paid by the member increase the total balance, crediting the member
+    const memFinalBalance = roundToTwo(memPrevBal + memDeposit + memPersonalBazaar - memTotalCost);
 
     let status: 'receivable' | 'payable' | 'settled' = 'settled';
     if (memFinalBalance > 0.009) {

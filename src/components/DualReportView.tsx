@@ -149,7 +149,7 @@ export const DualReportView = React.forwardRef<HTMLDivElement, DualReportViewPro
             <h2 className="text-xs font-bold text-slate-800 mb-1.5 flex items-center justify-between">
               <span>১. সদস্যভিত্তিক বিস্তারিত মিল, খরচ ও চূড়ান্ত ব্যালেন্স বিবরণী</span>
               <span className="text-[10px] text-slate-500 font-normal">
-                চূড়ান্ত ব্যালেন্স = পূর্বের ব্যালেন্স + মোট জমা − সর্বমোট খরচ
+                চূড়ান্ত ব্যালেন্স = পূর্বের ব্যালেন্স + মোট জমা + বাজার খরচ − সর্বমোট খরচ
               </span>
             </h2>
             <div className="overflow-x-auto border border-slate-200 rounded-lg">
@@ -160,10 +160,10 @@ export const DualReportView = React.forwardRef<HTMLDivElement, DualReportViewPro
                     <th className="py-2 px-2 text-right border-r border-slate-800">পূর্বের ব্যালেন্স</th>
                     <th className="py-2 px-2 text-center border-r border-slate-800">মিল</th>
                     <th className="py-2 px-2 text-right border-r border-slate-800">মিল খরচ</th>
-                    <th className="py-2 px-2 text-right border-r border-slate-800">ব্যক্তিগত বাজার</th>
                     <th className="py-2 px-2 text-right border-r border-slate-800">সার্বজনীন খরচ</th>
                     <th className="py-2 px-2 text-right border-r border-slate-800 font-bold">সর্বমোট খরচ</th>
-                    <th className="py-2 px-2 text-right border-r border-slate-800 font-bold">মোট জমা</th>
+                    <th className="py-2 px-2 text-right border-r border-slate-800 font-bold text-sky-400">বাজার খরচ (+)</th>
+                    <th className="py-2 px-2 text-right border-r border-slate-800 font-bold text-emerald-400">মোট জমা (+)</th>
                     <th className="py-2 px-2.5 text-right border-r border-slate-800 font-bold">চূড়ান্ত ব্যালেন্স</th>
                     <th className="py-2 px-2 text-center">স্ট্যাটাস</th>
                   </tr>
@@ -188,13 +188,13 @@ export const DualReportView = React.forwardRef<HTMLDivElement, DualReportViewPro
                           {formatTaka(m.mealCost)}
                         </td>
                         <td className="py-1.5 px-2 text-right text-slate-700 border-r border-slate-200">
-                          {formatTaka(m.personalBazaarCost)}
-                        </td>
-                        <td className="py-1.5 px-2 text-right text-slate-700 border-r border-slate-200">
                           {formatTaka(m.universalCostShare)}
                         </td>
                         <td className="py-1.5 px-2 text-right font-bold text-slate-900 border-r border-slate-200">
                           {formatTaka(m.totalCost)}
+                        </td>
+                        <td className="py-1.5 px-2 text-right font-bold text-sky-700 border-r border-slate-200">
+                          {formatTaka(m.personalBazaarCost)}
                         </td>
                         <td className="py-1.5 px-2 text-right font-bold text-emerald-700 border-r border-slate-200">
                           {formatTaka(m.totalDeposit)}
@@ -242,18 +242,20 @@ export const DualReportView = React.forwardRef<HTMLDivElement, DualReportViewPro
                       {formatTaka(roundToTwo(summary.totalMeals * summary.mealRate))}
                     </td>
                     <td className="py-2 px-2 text-right border-r border-slate-300">
-                      {formatTaka(summary.totalGeneralBazaar)}
-                    </td>
-                    <td className="py-2 px-2 text-right border-r border-slate-300">
                       {formatTaka(summary.totalUniversalExpense)}
                     </td>
                     <td className="py-2 px-2 text-right border-r border-slate-300">
                       {formatTaka(summary.totalCost)}
                     </td>
+                    <td className="py-2 px-2 text-right text-sky-700 border-r border-slate-300">
+                      {formatTaka(summary.totalGeneralBazaar)}
+                    </td>
                     <td className="py-2 px-2 text-right text-emerald-700 border-r border-slate-300">
                       {formatTaka(summary.totalDeposits)}
                     </td>
-                    <td className="py-2 px-2.5 text-right border-r border-slate-300">—</td>
+                    <td className="py-2 px-2.5 text-right border-r border-slate-300">
+                      {formatTaka(memberSummaries.reduce((sum, m) => sum + m.finalBalance, 0))}
+                    </td>
                     <td className="py-2 px-2 text-center text-slate-600 font-semibold text-[10px]">
                       হিসাব নিরীক্ষিত
                     </td>
